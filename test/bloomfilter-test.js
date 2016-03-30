@@ -41,7 +41,8 @@ suite.addBatch({
     "wtf": function() {
       var f = new BloomFilter(20, 10);
       f.add("abc");
-      assert.equal(f.test("wtf"), false);
+      assert.equal(f.test("abc"), false);
+      assert.equal(f.test("wtf"), true);
     },
     "works with integer types": function() {
       var f = new BloomFilter(1000, 4);
