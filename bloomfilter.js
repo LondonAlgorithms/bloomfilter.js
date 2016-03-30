@@ -7,19 +7,20 @@
   // number of bits. *hashingFunctions* specifies the number of hashing functions.
   function BloomFilter(bits, hashingFunctions) {
     this.hashingFunctions = hashingFunctions;
+    bits = Math.ceil(bits / 32) * 32;
     this.buckets = new Array(bits);
     this.buckets.fill(0);
-}
+  }
 
   // See http://willwhim.wpengine.com/2011/09/03/producing-n-hash-functions-by-hashing-only-once/
   BloomFilter.prototype.locations = function(v) {
-    var locations = new Array(this.hashingFunctions),
+    var locations = [],
         bits = this.buckets.length,
         a = fnv_1a(v + ""),
         b = fnv_1a_b(a),
         x = a % bits;
 
-    for (var i = 0; i < locations.length; ++i) {
+    for (var i = 0; i < this.hashingFunctions; ++i) {
       locations[i] = x < 0 ? (x + bits) : x;
       x = (x + b) % bits;
     }
@@ -27,23 +28,17 @@
   };
 
   BloomFilter.prototype.add = function(v) {
+    var buckets = this.buckets;
     this.locations(v).forEach(function (location) {
-      this.buckets[location] = 1;
-    }, this);
+      buckets[location] = true;
+    });
   };
 
   BloomFilter.prototype.test = function(v) {
+    var buckets = this.buckets;
     return this.locations(v).reduce(function (accumulator, location) {
-      return accumulator && this.buckets[location];
-    }.bind(this), true);
-  };
-
-  // Estimated cardinality.
-  BloomFilter.prototype.size = function() {
-    var buckets = this.buckets,
-        bits = 0;
-    for (var i = 0, n = buckets.length; i < n; ++i) bits += 1;
-    return -this.bits * Math.log(1 - bits / this.bits) / this.hashingFunctions;
+      return accumulator && buckets[location];
+    }, true);
   };
 
   // Fowler/Noll/Vo hashing.
