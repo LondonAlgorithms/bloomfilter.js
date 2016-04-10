@@ -7,15 +7,15 @@
   // number of bits. *hashingFunctions* specifies the number of hashing functions.
   function BloomFilter(bits, hashingFunctions) {
     this.hashingFunctions = hashingFunctions;
-    bits = Math.ceil(bits / 32) * 32;
-    this.buckets = new Array(bits);
+    var bytes = Math.ceil(bits / 32);
+    this.buckets = new Uint32Array(bytes);
     this.buckets.fill(0);
   }
 
   // See http://willwhim.wpengine.com/2011/09/03/producing-n-hash-functions-by-hashing-only-once/
   BloomFilter.prototype.locations = function(v) {
     var locations = [],
-        bits = this.buckets.length,
+        bits = this.buckets.length * 32,
         a = fnv_1a(v + ""),
         b = fnv_1a_b(a),
         x = a % bits;
@@ -30,16 +30,38 @@
   BloomFilter.prototype.add = function(v) {
     var buckets = this.buckets;
     this.locations(v).forEach(function (location) {
-      buckets[location] = true;
+      setLocation(buckets, location);
     });
   };
 
   BloomFilter.prototype.test = function(v) {
     var buckets = this.buckets;
     return this.locations(v).reduce(function (accumulator, location) {
-      return accumulator && buckets[location];
+      return accumulator && isLocationSet(buckets, location);
     }, true);
   };
+
+  function toPosition(buckets, location) {
+    var bit = location % 32;
+    var index = Math.floor(location / 32);
+
+    return {
+      byte: buckets[index],
+      index: index,
+      mask: 1 << bit
+    };
+  }
+
+  function setLocation(buckets, location) {
+    var position = toPosition(buckets, location);
+    buckets[position.index] = position.byte | position.mask;
+  }
+
+  function isLocationSet(buckets, location) {
+    var position = toPosition(buckets, location);
+    return !! (position.byte & position.mask);
+  }
+
 
   // Fowler/Noll/Vo hashing.
   function fnv_1a(v) {
