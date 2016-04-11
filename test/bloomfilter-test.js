@@ -1,46 +1,104 @@
-var bf = require("../bloomfilter"),
-    BloomFilter = bf.BloomFilter,
-    fnv_1a = bf.fnv_1a,
-    fnv_1a_b = bf.fnv_1a_b;
+'use strict';
 
-var vows = require("vows"),
-    assert = require("assert");
+const BloomFilter = window.BloomFilter;
+const assert = window.chai.assert;
+const fnv_1a = window.fnv_1a;
+const fnv_1a_b = window.fnv_1a_b;
 
-var suite = vows.describe("bloomfilter");
+const BITS = 1000;
+const HASHING_FUNCTIONS = 5;
 
-var jabberwocky = "`Twas brillig, and the slithy toves\n  Did gyre and gimble in the wabe:\nAll mimsy were the borogoves,\n  And the mome raths outgrabe.\n\n\"Beware the Jabberwock, my son!\n  The jaws that bite, the claws that catch!\nBeware the Jubjub bird, and shun\n  The frumious Bandersnatch!\"\n\nHe took his vorpal sword in hand:\n  Long time the manxome foe he sought --\nSo rested he by the Tumtum tree,\n  And stood awhile in thought.\n\nAnd, as in uffish thought he stood,\n  The Jabberwock, with eyes of flame,\nCame whiffling through the tulgey wood,\n  And burbled as it came!\n\nOne, two! One, two! And through and through\n  The vorpal blade went snicker-snack!\nHe left it dead, and with its head\n  He went galumphing back.\n\n\"And, has thou slain the Jabberwock?\n  Come to my arms, my beamish boy!\nO frabjous day! Callooh! Callay!'\n  He chortled in his joy.\n\n`Twas brillig, and the slithy toves\n  Did gyre and gimble in the wabe;\nAll mimsy were the borogoves,\n  And the mome raths outgrabe.";
-
-
-var jabberWords = jabberwocky.split(/\s+/).map(function (word) {
-  var cleaned = word.replace(/[\.`"',;\s!-]/g, '');
-  return cleaned;
-}).filter(function (word) {
+const JABBERWOCKY = "`Twas brillig, and the slithy toves\n  Did gyre and gimble in the wabe:\nAll mimsy were the borogoves,\n  And the mome raths outgrabe.\n\n\"Beware the Jabberwock, my son!\n  The jaws that bite, the claws that catch!\nBeware the Jubjub bird, and shun\n  The frumious Bandersnatch!\"\n\nHe took his vorpal sword in hand:\n  Long time the manxome foe he sought --\nSo rested he by the Tumtum tree,\n  And stood awhile in thought.\n\nAnd, as in uffish thought he stood,\n  The Jabberwock, with eyes of flame,\nCame whiffling through the tulgey wood,\n  And burbled as it came!\n\nOne, two! One, two! And through and through\n  The vorpal blade went snicker-snack!\nHe left it dead, and with its head\n  He went galumphing back.\n\n\"And, has thou slain the Jabberwock?\n  Come to my arms, my beamish boy!\nO frabjous day! Callooh! Callay!'\n  He chortled in his joy.\n\n`Twas brillig, and the slithy toves\n  Did gyre and gimble in the wabe;\nAll mimsy were the borogoves,\n  And the mome raths outgrabe.";
+const JABBER_WORDS = JABBERWOCKY.split(/\s+/).map((word) => {
+  return word.replace(/[\.`"',;\s!-]/g, '');
+}).filter((word) => {
   return word.length;
 });
 
-var BITS = 1000;
-var HASHING_FUNCTIONS = 5;
+describe('bloomfilter', () => {
+  describe('initialization', () => {
+    let filter;
 
-suite.addBatch({
-  "locations": {
-    topic: function () {
-      var f = new BloomFilter(BITS, HASHING_FUNCTIONS);
-      var locations = f.locations(jabberwocky);
-      return locations;
-    },
+    before(() => {
+      filter = new BloomFilter(BITS, HASHING_FUNCTIONS);
+    });
 
-    "the correct number of values are returned": function (locations) {
-      assert.equal(locations.length, HASHING_FUNCTIONS);
-    },
+    it('sets all bits to 0', () => {
+      filter.buckets.forEach((bucket) => {
+        assert.equal(bucket, 0);
+      });
+    });
+  });
 
-    "all values are >= 0": function (locations) {
-      locations.forEach(function (location) {
+  describe('locations (test one hash)', () => {
+    let locations;
+
+    beforeEach(() => {
+      let filter = new BloomFilter(BITS, 1);
+      locations = filter.locations(JABBERWOCKY);
+    });
+
+    it('returns the correct number of values', () => {
+      assert.lengthOf(locations, 1);
+    });
+
+    it('returns value >= 0', () => {
+      assert.ok(locations[0] >= 0);
+    });
+  });
+
+  describe('locations (test 2 hashes)', () => {
+    let locations;
+    let hashFunctions = 2
+
+    beforeEach(() => {
+      let filter = new BloomFilter(BITS, hashFunctions);
+      locations = filter.locations(JABBERWOCKY);
+    });
+
+    it('returns the correct number of values', () => {
+      assert.lengthOf(locations, hashFunctions);
+    });
+
+    it('returns values all >= 0', () => {
+      locations.forEach((location) => {
         assert.ok(location >= 0);
       });
-    },
+    });
 
-    "all values are unique": function (locations) {
-      var unique = locations.reduce(function (unique, value) {
+    it('returns all unique values', () => {
+      let unique = locations.reduce((unique, value) => {
+        if (unique.indexOf(value) === -1) {
+          unique.push(value);
+        }
+
+        return unique;
+      }, []);
+
+      assert.equal(unique.length, hashFunctions);
+    });
+  });
+
+  describe('locations (test arbitrary k)', () => {
+    let locations;
+
+    beforeEach(() => {
+      let filter = new BloomFilter(BITS, HASHING_FUNCTIONS);
+      locations = filter.locations(JABBERWOCKY);
+    });
+
+    it('returns the correct number of values', () => {
+      assert.lengthOf(locations, HASHING_FUNCTIONS);
+    });
+
+    it('returns values all >= 0', () => {
+      locations.forEach((location) => {
+        assert.ok(location >= 0);
+      });
+    });
+
+    it('returns all unique values', () => {
+      let unique = locations.reduce((unique, value) => {
         if (unique.indexOf(value) === -1) {
           unique.push(value);
         }
@@ -49,97 +107,149 @@ suite.addBatch({
       }, []);
 
       assert.equal(unique.length, HASHING_FUNCTIONS);
-    }
-  },
+    });
+  });
 
-  "bloom filter": {
-    "basic": function() {
-      var f = new BloomFilter(BITS, HASHING_FUNCTIONS),
-          n1 = "Bess",
-          n2 = "Jane";
-      f.add(n1);
-      assert.equal(f.test(n1), true);
-      assert.equal(f.test(n2), false);
-    },
-    "jabberwocky": function() {
-      var f = new BloomFilter(BITS, HASHING_FUNCTIONS),
-          n1 = jabberwocky,
-          n2 = jabberwocky + "\n";
-      f.add(n1);
-      assert.equal(f.test(n1), true);
-      assert.equal(f.test(n2), false);
-    },
-    "basic uint32": function() {
-      var f = new BloomFilter(BITS, HASHING_FUNCTIONS),
-          n1 = "\u0100",
-          n2 = "\u0101",
-          n3 = "\u0103";
-      f.add(n1);
-      assert.equal(f.test(n1), true);
-      assert.equal(f.test(n2), false);
-      assert.equal(f.test(n3), false);
-    },
-    "wtf": function() {
-      var f = new BloomFilter(20, 10);
-      f.add("abc");
-      assert.equal(f.test("wtf"), false);
-    },
-    "works with integer types": function() {
-      var f = new BloomFilter(BITS, HASHING_FUNCTIONS);
-      f.add(1);
-      assert.equal(f.test(1), true);
-      assert.equal(f.test(2), false);
-    }
-  },
+  describe('add/test', () => {
+    describe('basic', () => {
+      let filter;
+      let n1 = "Bess";
+      let n2 = "Jane";
 
-  "union": {
-    topic: function () {
-      var copy = [].concat(jabberWords);
-      var firstHalf = copy.splice(0, jabberWords.length / 2);
-      var secondHalf = copy;
+      before(() => {
+        filter = new BloomFilter(BITS, HASHING_FUNCTIONS);
+        filter.add(n1);
+      });
 
-      var f1 = new BloomFilter(BITS, HASHING_FUNCTIONS);
-      var f2 = new BloomFilter(BITS, HASHING_FUNCTIONS);
+      it('finds items in the set', () => {
+        assert.isTrue(filter.test(n1));
+      });
+
+      it('does not find items not in the set', () => {
+        assert.isFalse(filter.test(n2));
+      });
+    });
+
+    describe('with jabberwocky', () => {
+      let filter;
+      let n1 = JABBERWOCKY;
+      let n2 = JABBERWOCKY + "\n";
+
+      before(() => {
+        filter = new BloomFilter(BITS, HASHING_FUNCTIONS);
+        filter.add(n1);
+      });
+
+      it('finds items in the set', () => {
+        assert.isTrue(filter.test(n1));
+      });
+
+      it('does not find items not in the set', () => {
+        assert.isFalse(filter.test(n2));
+      });
+    });
+
+    describe('wtf', () => {
+      let filter;
+
+      before(() => {
+        filter = new BloomFilter(20, 10);
+        filter.add("abc");
+      });
+
+      it('does not find wtf', () => {
+        assert.isFalse(filter.test("wtf"));
+      });
+    });
+
+    describe('with uint32', () => {
+      let filter;
+      let n1 = "\u0100";
+      let n2 = "\u0101";
+      let n3 = "\u0103";
+
+      before(() => {
+        filter = new BloomFilter(BITS, HASHING_FUNCTIONS);
+        filter.add(n1);
+      });
+
+      it('finds items in the set', () => {
+        assert.isTrue(filter.test(n1));
+      });
+
+      it('does not find items not in the set', () => {
+        assert.isFalse(filter.test(n2));
+        assert.isFalse(filter.test(n3));
+      });
+    });
+
+    describe("with integers ", () => {
+      let filter;
+
+      before(() => {
+        filter = new BloomFilter(BITS, HASHING_FUNCTIONS);
+        filter.add(1);
+      });
+
+      it('finds items in the set', () => {
+        assert.isTrue(filter.test(1));
+      });
+
+      it('does not find items not in the set', () => {
+        assert.isFalse(filter.test(2));
+      });
+    });
+  });
+
+  describe('union', () => {
+    let unionFilter;
+
+    before(() => {
+      let copy = [].concat(JABBER_WORDS);
+      let firstHalf = copy.splice(0, JABBER_WORDS.length / 2);
+      let secondHalf = copy;
+
+      let f1 = new BloomFilter(BITS, HASHING_FUNCTIONS);
+      let f2 = new BloomFilter(BITS, HASHING_FUNCTIONS);
 
       firstHalf.forEach(f1.add.bind(f1));
       secondHalf.forEach(f2.add.bind(f2));
 
-      return f1.union(f2);
-    },
+      unionFilter = f1.union(f2);
+    });
 
-    "contains all words from both sets": function (unionFilter) {
-      jabberWords.forEach(function (word) {
+    it("returns a new filter that's the union of both", () => {
+      JABBER_WORDS.forEach((word) => {
         assert.isTrue(unionFilter.test(word));
       });
-    },
 
-    "returns a new filter that's the union of both": function (unionFilter) {
       assert.isFalse(unionFilter.test("asdf"));
       assert.isFalse(unionFilter.test("brilligs"));
-    }
-  },
+    });
+  });
 
-  "intersection": {
-    topic: function () {
-      var copy = [].concat(jabberWords);
-      var firstHalf = copy.splice(0, jabberWords.length / 2);
-      var secondHalf = copy;
+  describe('intersection', () => {
+    let intersectionFilter;
 
-      var f1 = new BloomFilter(BITS, HASHING_FUNCTIONS);
-      var f2 = new BloomFilter(BITS, HASHING_FUNCTIONS);
+    before(() => {
+      let copy = [].concat(JABBER_WORDS);
+      let firstHalf = copy.splice(0, JABBER_WORDS.length / 2);
+      let secondHalf = copy;
+
+      let f1 = new BloomFilter(BITS, HASHING_FUNCTIONS);
+      let f2 = new BloomFilter(BITS, HASHING_FUNCTIONS);
 
       firstHalf.forEach(f1.add.bind(f1));
       secondHalf.forEach(f2.add.bind(f2));
 
-      return f1.intersection(f2);
-    },
+      intersectionFilter = f1.intersection(f2);
+    });
 
-    "returns a new filter that's the interesection of both": function (intersectionFilter) {
+    it("returns a new filter that's the interesection of both", () => {
       assert.isTrue(intersectionFilter.test("gimble"));
       assert.isFalse(intersectionFilter.test("frumious"));
       assert.isFalse(intersectionFilter.test("asdf"));
-    }
-  }
+    });
+  });
 });
 
-suite.export(module);

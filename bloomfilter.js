@@ -1,9 +1,17 @@
 (function(exports) {
+  'use strict';
+
   exports.BloomFilter = BloomFilter;
   exports.fnv_1a = fnv_1a;
   exports.fnv_1a_b = fnv_1a_b;
 
   /**
+   * Code originally from bloomfilter.js by Jason Davies:
+   * https://github.com/jasondavies/bloomfilter.js/
+   *
+   * London JS Algorithms Study Group presentation:
+   * https://shane-tomlinson.github.io/bloomfilter-presentation/
+   *
    * An approachable explanation:
    * http://www.michaelnielsen.org/ddi/why-bloom-filters-work-the-way-they-do/
    *
@@ -14,14 +22,14 @@
   /**
    * Create a new Bloom Filter
    *
-   * @param {integer} bits - total number of bits in the storage table
-   * @param {integer} hashingFunctions - number of hashing functions to use
+   * @param {integer} m - total number of bits in the hash table
+   * @param {integer} k - number of hashing functions to use
    */
-  function BloomFilter(bits, hashingFunctions) {
-    this.hashingFunctions = hashingFunctions;
-    var bytes = Math.ceil(bits / 32);
-    this.maxN = bytes * 32;
-    this.buckets = new Uint32Array(bytes);
+  function BloomFilter(m, k) {
+    this.hashingFunctions = k;
+    var bucketCount = Math.ceil(m / 32);
+    this.maxN = bucketCount * 32;
+    this.buckets = new Uint32Array(bucketCount);
     this.buckets.fill(0);
   }
 
@@ -83,12 +91,12 @@
     if (this.maxN !== filter.maxN) {
       throw new Error('filters must be the same size');
     }
-    var unionFilter = new BloomFilter(this.maxN, this.hashingFunctions);
-    unionFilter.buckets = this.buckets.map(function (bucket, index) {
+    var intersectionFilter = new BloomFilter(this.maxN, this.hashingFunctions);
+    intersectionFilter.buckets = this.buckets.map(function (bucket, index) {
       return bucket & filter.buckets[index];
     });
 
-    return unionFilter;
+    return intersectionFilter;
   };
 
   function toPosition(location) {
