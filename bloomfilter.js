@@ -26,13 +26,19 @@
    * @param {integer} k - number of hashing functions to use
    */
   function BloomFilter(m, k) {
-    this.hashingFunctions = k;
+    this.hashFunctions = k;
     var bucketCount = Math.ceil(m / 32);
     this.maxN = bucketCount * 32;
     this.buckets = new Uint32Array(bucketCount);
     this.buckets.fill(0);
   }
 
+  /**
+   * Hash `v` this.hashingFunction times
+   *
+   * @param {variant} v
+   * @returns [array of numbers]
+   */
   BloomFilter.prototype.locations = function(v) {
     var locations = [];
 
@@ -41,7 +47,7 @@
     var a = fnv_1a(v + ""); // returns a 32bit signed int
     var b = fnv_1a_b(a); // returns a 32bit signed int
 
-    for (var i = 0; i < this.hashingFunctions; ++i) {
+    for (var i = 0; i < this.hashFunctions; ++i) {
       // a + b * i will produce some possibly huge number, cut off at maxN
       var g = (a + b * i) % this.maxN;
       // % in the above calculation will convert the number to a 32bit
@@ -53,6 +59,11 @@
     return locations;
   };
 
+  /**
+   * Add an item to the filter
+   *
+   * @param {variant} v
+   */
   BloomFilter.prototype.add = function(v) {
     var buckets = this.buckets;
     this.locations(v).forEach(function (location) {
@@ -60,6 +71,12 @@
     });
   };
 
+  /**
+   * Test if an item is in the filter
+   *
+   * @param {variant} v
+   * @returns {boolean}
+   */
   BloomFilter.prototype.test = function(v) {
     var buckets = this.buckets;
     return this.locations(v).reduce(function (accumulator, location) {
@@ -79,7 +96,7 @@
       throw new Error('filters must be the same size');
     }
 
-    var unionFilter = new BloomFilter(this.maxN, this.hashingFunctions);
+    var unionFilter = new BloomFilter(this.maxN, this.hashFunctions);
     unionFilter.buckets = this.buckets.map(function (bucket, index) {
       return bucket | filter.buckets[index];
     });
@@ -87,11 +104,18 @@
     return unionFilter;
   };
 
+  /**
+   * Create a new Bloomfilter that is the intersection of this
+   * filter plus another
+   *
+   * @param {BloomFilter} filter
+   * @returns {BloomFilter}
+   */
   BloomFilter.prototype.intersection = function(filter) {
     if (this.maxN !== filter.maxN) {
       throw new Error('filters must be the same size');
     }
-    var intersectionFilter = new BloomFilter(this.maxN, this.hashingFunctions);
+    var intersectionFilter = new BloomFilter(this.maxN, this.hashFunctions);
     intersectionFilter.buckets = this.buckets.map(function (bucket, index) {
       return bucket & filter.buckets[index];
     });
@@ -120,6 +144,13 @@
     var bucket = buckets[position.index];
     return !! (bucket & position.mask);
   }
+
+
+  /*************************
+   *
+   * HELPERS!
+   *
+   */
 
   /**
    * Fowler/Noll/Vo hashing. See
