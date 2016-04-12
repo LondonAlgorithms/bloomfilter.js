@@ -1,3 +1,5 @@
+(function () {
+//global it, before, beforeEach
 'use strict';
 
 const BloomFilter = window.BloomFilter;
@@ -30,44 +32,44 @@ describe('bloomfilter', () => {
     });
   });
 
-  describe('locations (test one hash)', () => {
-    let locations;
+  describe('indices (test one hash)', () => {
+    let indices;
 
     beforeEach(() => {
       let filter = new BloomFilter(BITS, 1);
-      locations = filter.locations(JABBERWOCKY);
+      indices = filter.indices(JABBERWOCKY);
     });
 
     it('returns the correct number of values', () => {
-      assert.lengthOf(locations, 1);
+      assert.lengthOf(indices, 1);
     });
 
     it('returns value >= 0', () => {
-      assert.ok(locations[0] >= 0);
+      assert.ok(indices[0] >= 0);
     });
   });
 
-  describe('locations (test 2 hashes)', () => {
-    let locations;
-    let hashFunctions = 2
+  describe('indices (test 2 hashes)', () => {
+    let indices;
+    let hashFunctions = 2;
 
     beforeEach(() => {
       let filter = new BloomFilter(BITS, hashFunctions);
-      locations = filter.locations(JABBERWOCKY);
+      indices = filter.indices(JABBERWOCKY);
     });
 
     it('returns the correct number of values', () => {
-      assert.lengthOf(locations, hashFunctions);
+      assert.lengthOf(indices, hashFunctions);
     });
 
     it('returns values all >= 0', () => {
-      locations.forEach((location) => {
+      indices.forEach((location) => {
         assert.ok(location >= 0);
       });
     });
 
     it('returns all unique values', () => {
-      let unique = locations.reduce((unique, value) => {
+      let unique = indices.reduce((unique, value) => {
         if (unique.indexOf(value) === -1) {
           unique.push(value);
         }
@@ -79,26 +81,26 @@ describe('bloomfilter', () => {
     });
   });
 
-  describe('locations (test arbitrary k)', () => {
-    let locations;
+  describe('indices (test arbitrary k)', () => {
+    let indices;
 
     beforeEach(() => {
       let filter = new BloomFilter(BITS, HASHING_FUNCTIONS);
-      locations = filter.locations(JABBERWOCKY);
+      indices = filter.indices(JABBERWOCKY);
     });
 
     it('returns the correct number of values', () => {
-      assert.lengthOf(locations, HASHING_FUNCTIONS);
+      assert.lengthOf(indices, HASHING_FUNCTIONS);
     });
 
     it('returns values all >= 0', () => {
-      locations.forEach((location) => {
+      indices.forEach((location) => {
         assert.ok(location >= 0);
       });
     });
 
     it('returns all unique values', () => {
-      let unique = locations.reduce((unique, value) => {
+      let unique = indices.reduce((unique, value) => {
         if (unique.indexOf(value) === -1) {
           unique.push(value);
         }
@@ -252,4 +254,5 @@ describe('bloomfilter', () => {
     });
   });
 });
+}());
 

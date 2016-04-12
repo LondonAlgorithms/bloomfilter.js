@@ -5,6 +5,9 @@
   exports.fnv_1a = fnv_1a;
   exports.fnv_1a_b = fnv_1a_b;
 
+  var hash1 = fnv_1a;
+  var hash2 = fnv_1a_b;
+
   /**
    * Code originally from bloomfilter.js by Jason Davies:
    * https://github.com/jasondavies/bloomfilter.js/
@@ -14,9 +17,6 @@
    *
    * An approachable explanation:
    * http://www.michaelnielsen.org/ddi/why-bloom-filters-work-the-way-they-do/
-   *
-   * A great survey of the math behind filters, and their uses:
-   * https://www.eecs.harvard.edu/~michaelm/postscripts/im2005b.pdf
    */
 
   /**
@@ -26,80 +26,89 @@
    * @param {integer} k - number of hashing functions to use
    */
   function BloomFilter(m, k) {
-    this.hashFunctions = k;
-    var bucketCount = Math.ceil(m / 32);
-    this.maxN = bucketCount * 32;
-    this.buckets = new Uint32Array(bucketCount);
-    this.buckets.fill(0);
+    // this.m is the same as this.buckets.length.
+    this.m = m;
+    this.k = k;
+    this.buckets = new Array(m);
+    this.buckets.fill(false);
   }
 
   /**
-   * Hash `v` this.hashingFunction times
+   * Find all `k` indices in the array where values
+   * should be stored or tested.
    *
-   * @param {variant} v
+   * @param {number || string} value
    * @returns [array of numbers]
    */
-  BloomFilter.prototype.locations = function(v) {
-    var locations = [];
+  BloomFilter.prototype.indices = function(value) {
+    var indices = [];
 
     // Only two hashes are used to simulate n hashes.
     // See http://willwhim.wpengine.com/2011/09/03/producing-n-hash-functions-by-hashing-only-once/
-    var a = fnv_1a(v + ""); // returns a 32bit signed int
-    var b = fnv_1a_b(a); // returns a 32bit signed int
+    var hashValueA = hash1(value);      // returns a 32bit signed int
+    var hashValueB = hash2(hashValueA); // returns a 32bit signed int
 
-    for (var i = 0; i < this.hashFunctions; ++i) {
-      // a + b * i will produce some possibly huge number, cut off at maxN
-      var g = (a + b * i) % this.maxN;
-      // % in the above calculation will convert the number to a 32bit
-      // signed number, which could be negative. All numbers correspond
-      // to an index in an array. Ensure the number is positive.
-      locations[i] = Math.abs(g);
+    for (var i = 0; i < this.k; ++i) {
+      // index could a huge number, cut off at this.m, which
+      // is the highest possible index.
+      indices[i] = (hashValueA + (hashValueB * i)) % this.m;
     }
 
-    return locations;
+    return indices;
   };
 
   /**
-   * Add an item to the filter
+   * Add `value` to the filter.
    *
-   * @param {variant} v
+   * @param {string || number} value
    */
-  BloomFilter.prototype.add = function(v) {
+  BloomFilter.prototype.add = function(value) {
     var buckets = this.buckets;
-    this.locations(v).forEach(function (location) {
-      setLocation(buckets, location);
+    // Run hash k times to find the appropriate hashes.
+    // Set the value at each returned index to true.
+    this.indices(value).forEach(function (index) {
+      buckets[index] = true;
     });
   };
 
   /**
-   * Test if an item is in the filter
+   * Test if `value` is a member of the filter.
    *
-   * @param {variant} v
+   * @param {string || number} value
    * @returns {boolean}
    */
-  BloomFilter.prototype.test = function(v) {
-    var buckets = this.buckets;
-    return this.locations(v).reduce(function (accumulator, location) {
-      return accumulator && isLocationSet(buckets, location);
-    }, true);
+  BloomFilter.prototype.test = function(value) {
+    // Run hash k times to find the appropriate hashes.
+    // Check if the value at each returned index is true.
+    var indices = this.indices(value);
+
+    for (var i = 0; i < indices.length; ++i) {
+      var index = indices[i];
+      if (! this.buckets[index]) {
+        return false;
+      }
+    }
+
+    return true;
   };
 
   /**
    * Create a new Bloomfilter that is the union of this filter
    * plus another.
    *
-   * @param {BloomFilter} filter
+   * @param {BloomFilter} other
    * @returns {BloomFilter}
    */
-  BloomFilter.prototype.union = function(filter) {
-    if (this.maxN !== filter.maxN) {
+  BloomFilter.prototype.union = function(other) {
+    if (this.m !== other.m) {
       throw new Error('filters must be the same size');
     }
 
-    var unionFilter = new BloomFilter(this.maxN, this.hashFunctions);
-    unionFilter.buckets = this.buckets.map(function (bucket, index) {
-      return bucket | filter.buckets[index];
-    });
+    var unionFilter = new BloomFilter(this.m, this.k);
+
+    for (var i = 0; i < this.buckets.length; ++i) {
+      unionFilter.buckets[i] = this.buckets[i] || other.buckets[i];
+    }
 
     return unionFilter;
   };
@@ -111,44 +120,23 @@
    * @param {BloomFilter} filter
    * @returns {BloomFilter}
    */
-  BloomFilter.prototype.intersection = function(filter) {
-    if (this.maxN !== filter.maxN) {
+  BloomFilter.prototype.intersection = function(other) {
+    if (this.m !== other.m) {
       throw new Error('filters must be the same size');
     }
-    var intersectionFilter = new BloomFilter(this.maxN, this.hashFunctions);
-    intersectionFilter.buckets = this.buckets.map(function (bucket, index) {
-      return bucket & filter.buckets[index];
-    });
+
+    var intersectionFilter = new BloomFilter(this.m, this.k);
+
+    for (var i = 0; i < this.buckets.length; ++i) {
+      intersectionFilter.buckets[i] = this.buckets[i] && other.buckets[i];
+    }
 
     return intersectionFilter;
   };
 
-  function toPosition(location) {
-    var bit = location % 32;
-    var index = Math.floor(location / 32);
-
-    return {
-      index: index,
-      mask: 1 << bit
-    };
-  }
-
-  function setLocation(buckets, location) {
-    var position = toPosition(location);
-    var newBucketValue = buckets[position.index] | position.mask;
-    buckets[position.index] = newBucketValue;
-  }
-
-  function isLocationSet(buckets, location) {
-    var position = toPosition(location);
-    var bucket = buckets[position.index];
-    return !! (bucket & position.mask);
-  }
-
-
   /*************************
    *
-   * HELPERS!
+   * HELPERS! Scary stuff below here.
    *
    */
 
@@ -167,6 +155,7 @@
   {
     var FNV1_32A_INIT = 0x811c9dc5;
     var hval = FNV1_32A_INIT;
+    str = '' + str;
     for ( var i = 0; i < str.length; ++i )
     {
       hval ^= str.charCodeAt(i);
@@ -191,7 +180,7 @@
   /**
    * One additional iteration of FNV, given a hash value.
    *
-   * @param {32bit signed in}
+   * @param {32bit signed int}
    * @returns 32bit signed int
    */
   function fnv_1a_b(a) {
