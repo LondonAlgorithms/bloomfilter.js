@@ -49,7 +49,7 @@
     var hashValueB = hash2(hashValueA); // returns a 32bit signed int
 
     for (var i = 0; i < this.k; ++i) {
-      // result could produce a huge number, cut off at this.m, which
+      // index could a huge number, cut off at this.m, which
       // is the highest possible index.
       indices[i] = (hashValueA + (hashValueB * i)) % this.m;
     }
@@ -78,12 +78,18 @@
    * @returns {boolean}
    */
   BloomFilter.prototype.test = function(value) {
-    var buckets = this.buckets;
     // Run hash k times to find the appropriate hashes.
     // Check if the value at each returned index is true.
-    return this.indices(value).reduce(function (areAllBucketsSet, index) {
-      return areAllBucketsSet && buckets[index];
-    }, true);
+    var indices = this.indices(value);
+
+    for (var i = 0; i < indices.length; ++i) {
+      var index = indices[i];
+      if (! this.buckets[index]) {
+        return false;
+      }
+    }
+
+    return true;
   };
 
   /**
